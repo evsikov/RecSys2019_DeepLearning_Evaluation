@@ -46,8 +46,6 @@ class SLIMElasticNetRecommender(BaseItemSimilarityMatrixRecommender):
         self.positive_only = positive_only
         self.topK = topK
 
-        # Display ConvergenceWarning only once and not for every item it occurs
-        warnings.simplefilter("once", category = ConvergenceWarning)
 
         # initialize the ElasticNet model
         self.model = ElasticNet(alpha=alpha,
@@ -132,7 +130,7 @@ class SLIMElasticNetRecommender(BaseItemSimilarityMatrixRecommender):
 
 
             if time.time() - start_time_printBatch > 300 or currentItem == n_items-1:
-                self._print("Processed {} ( {:.2f}% ) in {:.2f} {}. Items per second: {:.2f}".format(
+                self._print("Processed {} ({:4.1f}%) in {:.2f} {}. Items per second: {:.2f}".format(
                     currentItem+1,
                     100.0* float(currentItem+1)/n_items,
                     new_time_value,

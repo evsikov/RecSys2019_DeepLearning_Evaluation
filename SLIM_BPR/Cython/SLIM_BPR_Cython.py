@@ -54,24 +54,13 @@ class SLIM_BPR_Cython(BaseItemSimilarityMatrixRecommender, Incremental_Training_
 
     def __init__(self, URM_train,
                  verbose = True,
-                 free_mem_threshold = 0.5,
-                 recompile_cython = False):
+                 free_mem_threshold = 0.5):
 
 
         super(SLIM_BPR_Cython, self).__init__(URM_train, verbose = verbose)
 
         assert free_mem_threshold>=0.0 and free_mem_threshold<=1.0, "SLIM_BPR_Recommender: free_mem_threshold must be between 0.0 and 1.0, provided was '{}'".format(free_mem_threshold)
-
-        self.n_users, self.n_items = self.URM_train.shape
-
         self.free_mem_threshold = free_mem_threshold
-
-        if recompile_cython:
-            print("Compiling in Cython")
-            self.runCompilationScript()
-            print("Compilation Complete")
-
-
 
 
 
@@ -80,7 +69,7 @@ class SLIM_BPR_Cython(BaseItemSimilarityMatrixRecommender, Incremental_Training_
             train_with_sparse_weights = None,
             symmetric = True,
             random_seed = None,
-            batch_size = 1000, lambda_i = 0.0, lambda_j = 0.0, learning_rate = 1e-4, topK = 200,
+            lambda_i = 0.0, lambda_j = 0.0, learning_rate = 1e-4, topK = 200,
             sgd_mode='adagrad', gamma=0.995, beta_1=0.9, beta_2=0.999,
             **earlystopping_kwargs):
 
@@ -114,7 +103,6 @@ class SLIM_BPR_Cython(BaseItemSimilarityMatrixRecommender, Incremental_Training_
                 self.train_with_sparse_weights = True
 
 
-
         # Select only positive interactions
         URM_train_positive = self.URM_train.copy()
 
@@ -137,7 +125,6 @@ class SLIM_BPR_Cython(BaseItemSimilarityMatrixRecommender, Incremental_Training_
                                                  learning_rate=learning_rate,
                                                  li_reg = lambda_i,
                                                  lj_reg = lambda_j,
-                                                 batch_size=1,
                                                  symmetric = self.symmetric,
                                                  sgd_mode = sgd_mode,
                                                  verbose = self.verbose,
@@ -153,8 +140,6 @@ class SLIM_BPR_Cython(BaseItemSimilarityMatrixRecommender, Incremental_Training_
             raise ValueError("TopK not valid. Acceptable values are either False or a positive integer value. Provided value was '{}'".format(topK))
         self.topK = topK
 
-
-        self.batch_size = batch_size
         self.lambda_i = lambda_i
         self.lambda_j = lambda_j
         self.learning_rate = learning_rate
@@ -196,25 +181,3 @@ class SLIM_BPR_Cython(BaseItemSimilarityMatrixRecommender, Incremental_Training_
         else:
             self.W_sparse = similarityMatrixTopK(self.S_incremental, k = self.topK)
             self.W_sparse = check_matrix(self.W_sparse, format='csr')
-
-
-
-
-    def runCompilationScript(self):
-
-        # Run compile script setting the working directory to ensure the compiled file are contained in the
-        # appropriate subfolder and not the project root
-
-        file_subfolder = "/SLIM_BPR/Cython"
-        file_to_compile_list = ['SLIM_BPR_Cython_Epoch.pyx']
-
-        run_compile_subprocess(file_subfolder, file_to_compile_list)
-
-        print("{}: Compiled module {} in subfolder: {}".format(self.RECOMMENDER_NAME, file_to_compile_list, file_subfolder))
-
-        # Command to run compilation script
-        # python compile_script.py SLIM_BPR_Cython_Epoch.pyx build_ext --inplace
-
-        # Command to generate html report
-        # cython -a SLIM_BPR_Cython_Epoch.pyx
-

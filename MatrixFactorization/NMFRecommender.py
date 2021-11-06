@@ -7,8 +7,9 @@ Created on 14/06/18
 """
 
 from Base.BaseMatrixFactorizationRecommender import BaseMatrixFactorizationRecommender
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 from sklearn.decomposition import NMF
-import scipy.sparse as sps
+import time
 
 
 class NMFRecommender(BaseMatrixFactorizationRecommender):
@@ -53,6 +54,7 @@ class NMFRecommender(BaseMatrixFactorizationRecommender):
         if beta_loss not in self.BETA_LOSS_VALUES:
            raise ValueError("Value for 'beta_loss' not recognized. Acceptable values are {}, provided was '{}'".format(self.BETA_LOSS_VALUES, beta_loss))
 
+        start_time = time.time()
         self._print("Computing NMF decomposition...")
 
         nmf_solver = NMF(n_components  = num_factors,
@@ -70,4 +72,5 @@ class NMFRecommender(BaseMatrixFactorizationRecommender):
         self.ITEM_factors = nmf_solver.components_.copy().T
         self.USER_factors = nmf_solver.transform(self.URM_train)
 
-        self._print("Computing NMF decomposition... Done!")
+        new_time_value, new_time_unit = seconds_to_biggest_unit(time.time()-start_time)
+        self._print("Computing NMF decomposition... done in {:.2f} {}".format( new_time_value, new_time_unit))

@@ -15,6 +15,12 @@ We are still actively pursuing this research direction in evaluation and reprodu
 Please cite our articles if you use this repository or our implementations of baseline algorithms, remember also to cite the original authors if you use our porting of the DL algorithms. The BibTex code is linked above, next to the article.
 
 
+**Update 06/11/2021:**
+A [recent paper](https://dl.acm.org/doi/10.1145/3460231.3478848) observed some issues in the description and implementation of HR and NDCG.
+The issue is present under random holdout, hence it only affects very few NDCG results. The implementation has been updated to fix the issue, the additional material contains the updated metric description and results for the few affected cases.
+The analysis and conclusions of the study are not affected.
+
+
 ## Full results and hyperparameters
 The full results and corresponding hyperparameters for all DL algorithms are accessible [HERE](DL_Evaluation_TOIS_Additional_material.pdf).
 For information on the requirements and how to install this repository, see the following [Installation](#Installation) section.

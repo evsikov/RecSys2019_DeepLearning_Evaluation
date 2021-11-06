@@ -16,12 +16,13 @@ Created on 07/09/17
 #defining NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 
 from Base.Recommender_utils import check_matrix
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 import cython
 
 import numpy as np
 cimport numpy as np
-import time
+import time, math
 import sys
 
 from libc.math cimport exp, sqrt
@@ -49,7 +50,7 @@ cdef struct MSE_sample:
 @cython.overflowcheck(False)
 cdef class MatrixFactorization_Cython_Epoch:
 
-    cdef int n_users, n_items, n_factors
+    cdef int n_users, n_items, n_factors, print_step_seconds
     cdef algorithm_name
 
     cdef double learning_rate, user_reg, item_reg, positive_reg, negative_reg, bias_reg
@@ -97,7 +98,7 @@ cdef class MatrixFactorization_Cython_Epoch:
                  negative_interactions_quota = 0.5,
                  learning_rate = 1e-3, use_bias = False,
                  user_reg = 0.0, item_reg = 0.0, bias_reg = 0.0, positive_reg = 0.0, negative_reg = 0.0,
-                 verbose = False, random_seed = None,
+                 verbose = False, print_step_seconds = 300, random_seed = None,
                  init_mean = 0.0, init_std_dev = 0.1,
                  sgd_mode='sgd', gamma=0.995, beta_1=0.9, beta_2=0.999):
 
@@ -128,6 +129,8 @@ cdef class MatrixFactorization_Cython_Epoch:
         self.positive_reg = positive_reg
         self.negative_reg = negative_reg
         self.bias_reg = bias_reg
+        self.print_step_seconds = print_step_seconds
+
         self.use_bias = use_bias
         self.batch_size = batch_size
         self.init_mean = init_mean
@@ -286,10 +289,10 @@ cdef class MatrixFactorization_Cython_Epoch:
     def epochIteration_Cython_FUNK_SVD_SGD(self):
 
         # Get number of available interactions
-        cdef long num_total_batch = int(len(self.URM_train_data) / self.batch_size) + 1
+        cdef long n_total_batch = int(len(self.URM_train_data) / self.batch_size) + 1
 
         cdef MSE_sample sample
-        cdef long factor_index, num_current_batch, num_sample_in_batch, processed_samples_last_print, print_block_size = 500
+        cdef long factor_index, n_current_batch, n_sample_in_batch, processed_samples_last_print=0, print_block_size = 500
         cdef double prediction, prediction_error
         cdef double local_gradient_item, local_gradient_user, local_gradient_bias_item, local_gradient_bias_user, local_gradient_bias_global
 
@@ -299,12 +302,12 @@ cdef class MatrixFactorization_Cython_Epoch:
         cdef long start_time_epoch = time.time()
         cdef long last_print_time = start_time_epoch
 
-        for num_current_batch in range(num_total_batch):
+        for n_current_batch in range(n_total_batch):
 
             self._clear_minibatch_data_structures()
 
             # Iterate over samples in batch
-            for num_sample_in_batch in range(self.batch_size):
+            for n_sample_in_batch in range(self.batch_size):
 
                 # Uniform user sampling with replacement
                 sample = self.sampleMSE_Cython()
@@ -360,25 +363,25 @@ cdef class MatrixFactorization_Cython_Epoch:
                 self.beta_1_power_t *= self.beta_1
                 self.beta_2_power_t *= self.beta_2
 
+            processed_samples_last_print += 1
 
-            if self.verbose and (processed_samples_last_print >= print_block_size or num_current_batch == num_total_batch-1):
+            if self.verbose and (processed_samples_last_print >= print_block_size or n_current_batch == n_total_batch-1):
 
+                # Set block size to the number of items necessary in order to print every 300 seconds
                 current_time = time.time()
+                samples_per_sec = n_current_batch/(current_time - start_time_epoch)
+                print_block_size = math.ceil(samples_per_sec * self.print_step_seconds)
 
-                # Set block size to the number of items necessary in order to print every 30 seconds
-                samples_per_sec = num_current_batch/(time.time() - start_time_epoch)
+                if current_time - last_print_time > self.print_step_seconds or n_current_batch == n_total_batch-1:
+                    new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time_epoch)
 
-                print_block_size = int(samples_per_sec*30)
-
-                if current_time - last_print_time > 30 or num_current_batch == num_total_batch-1:
-
-                    print("{}: Processed {} ( {:.2f}% ) in {:.2f} seconds. MSE loss {:.2E}. Sample per second: {:.0f}".format(
+                    print("{}: Processed {} ({:4.1f}%) in {:.2f} {}. MSE loss {:.2E}. Sample per second: {:.0f}".format(
                         self.algorithm_name,
-                        num_current_batch*self.batch_size,
-                        100.0* num_current_batch/num_total_batch,
-                        time.time() - last_print_time,
-                        cumulative_loss/(num_current_batch*self.batch_size + 1),
-                        float(num_current_batch*self.batch_size + 1) / (time.time() - start_time_epoch)))
+                        (n_current_batch+1)*self.batch_size,
+                        100.0* (n_current_batch+1)/n_total_batch,
+                        new_time_value, new_time_unit,
+                        cumulative_loss/((n_current_batch+1)*self.batch_size),
+                        float((n_current_batch+1)*self.batch_size) / (time.time() - start_time_epoch)))
 
                     last_print_time = current_time
                     processed_samples_last_print = 0
@@ -396,10 +399,10 @@ cdef class MatrixFactorization_Cython_Epoch:
         assert self.batch_size == 1, "Batch size other than 1 not supported for ASY_SVD"
 
         # Get number of available interactions
-        cdef long num_total_batch = int(len(self.URM_train_data) / self.batch_size) + 1
+        cdef long n_total_batch = int(len(self.URM_train_data) / self.batch_size) + 1
 
         cdef MSE_sample sample
-        cdef long num_current_batch, num_sample_in_batch, processed_samples_last_print, print_block_size = 500
+        cdef long n_current_batch, n_sample_in_batch, processed_samples_last_print = 0, print_block_size = 500
         cdef double prediction, prediction_error
         cdef double local_gradient_item, local_gradient_user, local_gradient_bias_item, local_gradient_bias_user, local_gradient_bias_global
 
@@ -413,19 +416,19 @@ cdef class MatrixFactorization_Cython_Epoch:
         cdef long last_print_time = start_time_epoch
 
 
-        for num_current_batch in range(num_total_batch):
+        for n_current_batch in range(n_total_batch):
 
 
             prediction_error = 0.0
 
             # Iterate over samples in batch
-            for num_sample_in_batch in range(self.batch_size):
+            for n_sample_in_batch in range(self.batch_size):
 
                 # Uniform user sampling with replacement
                 sample = self.sampleMSE_Cython()
 
-                self.mini_batch_sampled_items[num_sample_in_batch] = sample.item
-                self.mini_batch_sampled_users[num_sample_in_batch] = sample.user
+                self.mini_batch_sampled_items[n_sample_in_batch] = sample.item
+                self.mini_batch_sampled_users[n_sample_in_batch] = sample.user
 
 
                 for factor_index in range(self.n_factors):
@@ -482,10 +485,10 @@ cdef class MatrixFactorization_Cython_Epoch:
 
 
             # Iterate over samples in batch
-            for num_sample_in_batch in range(self.batch_size):
+            for n_sample_in_batch in range(self.batch_size):
 
-                sample.item = self.mini_batch_sampled_items[num_sample_in_batch]
-                sample.user = self.mini_batch_sampled_users[num_sample_in_batch]
+                sample.item = self.mini_batch_sampled_items[n_sample_in_batch]
+                sample.user = self.mini_batch_sampled_users[n_sample_in_batch]
 
                 if self.use_bias:
 
@@ -548,25 +551,25 @@ cdef class MatrixFactorization_Cython_Epoch:
                 self.beta_1_power_t *= self.beta_1
                 self.beta_2_power_t *= self.beta_2
 
+            processed_samples_last_print += 1
 
-            if self.verbose and (processed_samples_last_print >= print_block_size or num_current_batch == num_total_batch-1):
+            if self.verbose and (processed_samples_last_print >= print_block_size or n_current_batch == n_total_batch-1):
 
+                # Set block size to the number of items necessary in order to print every 300 seconds
                 current_time = time.time()
+                samples_per_sec = n_current_batch/(current_time - start_time_epoch)
+                print_block_size = math.ceil(samples_per_sec * self.print_step_seconds)
 
-                # Set block size to the number of items necessary in order to print every 30 seconds
-                samples_per_sec = num_current_batch/(time.time() - start_time_epoch)
+                if current_time - last_print_time > self.print_step_seconds or n_current_batch == n_total_batch-1:
+                    new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time_epoch)
 
-                print_block_size = int(samples_per_sec*30)
-
-                if current_time - last_print_time > 30 or num_current_batch == num_total_batch-1:
-
-                    print("{}: Processed {} ( {:.2f}% ) in {:.2f} seconds. MSE loss {:.2E}. Sample per second: {:.0f}".format(
+                    print("{}: Processed {} ({:4.1f}%) in {:.2f} {}. MSE loss {:.2E}. Sample per second: {:.0f}".format(
                         self.algorithm_name,
-                        num_current_batch*self.batch_size,
-                        100.0* num_current_batch/num_total_batch,
-                        time.time() - last_print_time,
-                        cumulative_loss/(num_current_batch*self.batch_size + 1),
-                        float(num_current_batch*self.batch_size + 1) / (time.time() - start_time_epoch)))
+                        (n_current_batch+1)*self.batch_size,
+                        100.0* (n_current_batch+1)/n_total_batch,
+                        new_time_value, new_time_unit,
+                        cumulative_loss/((n_current_batch+1)*self.batch_size),
+                        float((n_current_batch+1)*self.batch_size) / (time.time() - start_time_epoch)))
 
                     last_print_time = current_time
                     processed_samples_last_print = 0
@@ -580,12 +583,12 @@ cdef class MatrixFactorization_Cython_Epoch:
     def epochIteration_Cython_BPR_SGD(self):
 
         # Get number of available interactions
-        cdef long num_total_batch = int(self.n_users / self.batch_size) + 1
+        cdef long n_total_batch = int(self.n_users / self.batch_size) + 1
 
 
         cdef BPR_sample sample
         cdef long u, i, j
-        cdef long factor_index, num_current_batch, num_sample_in_batch, processed_samples_last_print, print_block_size = 500
+        cdef long factor_index, n_current_batch, n_sample_in_batch, processed_samples_last_print = 0, print_block_size = 500
         cdef double x_uij, sigmoid_user, sigmoid_item, local_gradient_i, local_gradient_j, local_gradient_u
 
         cdef double H_i, H_j, W_u, cumulative_loss = 0.0
@@ -594,12 +597,12 @@ cdef class MatrixFactorization_Cython_Epoch:
         cdef long start_time_epoch = time.time()
         cdef long last_print_time = start_time_epoch
 
-        for num_current_batch in range(num_total_batch):
+        for n_current_batch in range(n_total_batch):
 
             self._clear_minibatch_data_structures()
 
             # Iterate over samples in batch
-            for num_sample_in_batch in range(self.batch_size):
+            for n_sample_in_batch in range(self.batch_size):
 
                 # Uniform user sampling with replacement
                 sample = self.sampleBPR_Cython()
@@ -648,25 +651,25 @@ cdef class MatrixFactorization_Cython_Epoch:
                 self.beta_1_power_t *= self.beta_1
                 self.beta_2_power_t *= self.beta_2
 
+            processed_samples_last_print += 1
 
-            if self.verbose and (processed_samples_last_print >= print_block_size or num_current_batch == num_total_batch-1):
+            if self.verbose and (processed_samples_last_print >= print_block_size or n_current_batch == n_total_batch-1):
 
+                # Set block size to the number of items necessary in order to print every 300 seconds
                 current_time = time.time()
+                samples_per_sec = n_current_batch/(current_time - start_time_epoch)
+                print_block_size = math.ceil(samples_per_sec * self.print_step_seconds)
 
-                # Set block size to the number of items necessary in order to print every 30 seconds
-                samples_per_sec = num_current_batch/(time.time() - start_time_epoch)
+                if current_time - last_print_time > self.print_step_seconds or n_current_batch == n_total_batch-1:
+                    new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time_epoch)
 
-                print_block_size = int(samples_per_sec*30)
-
-                if current_time - last_print_time > 30 or num_current_batch == num_total_batch-1:
-
-                    print("{}: Processed {} ( {:.2f}% ) in {:.2f} seconds. BPR loss {:.2E}. Sample per second: {:.0f}".format(
+                    print("{}: Processed {} ({:4.1f}%) in {:.2f} {}. MSE loss {:.2E}. Sample per second: {:.0f}".format(
                         self.algorithm_name,
-                        num_current_batch*self.batch_size,
-                        100.0* num_current_batch/num_total_batch,
-                        time.time() - last_print_time,
-                        cumulative_loss/(num_current_batch*self.batch_size + 1),
-                        float(num_current_batch*self.batch_size + 1) / (time.time() - start_time_epoch)))
+                        (n_current_batch+1)*self.batch_size,
+                        100.0* (n_current_batch+1)/n_total_batch,
+                        new_time_value, new_time_unit,
+                        cumulative_loss/((n_current_batch+1)*self.batch_size),
+                        float((n_current_batch+1)*self.batch_size) / (time.time() - start_time_epoch)))
 
                     last_print_time = current_time
                     processed_samples_last_print = 0
@@ -770,7 +773,7 @@ cdef class MatrixFactorization_Cython_Epoch:
     cdef void _apply_minibatch_updates_to_latent_factors(self):
 
         cdef double local_gradient_item, local_gradient_user, local_gradient_bias_item, local_gradient_bias_user, local_gradient_bias_global
-        cdef long sampled_user, sampled_item, num_sample_in_batch
+        cdef long sampled_user, sampled_item, n_sample_in_batch
 
 
         if self.use_bias:
@@ -786,9 +789,9 @@ cdef class MatrixFactorization_Cython_Epoch:
 
 
 
-        for num_sample_in_batch in range(self.mini_batch_sampled_items_counter):
+        for n_sample_in_batch in range(self.mini_batch_sampled_items_counter):
 
-            sampled_item = self.mini_batch_sampled_items[num_sample_in_batch]
+            sampled_item = self.mini_batch_sampled_items[n_sample_in_batch]
 
             if self.use_bias:
                 local_gradient_bias_item = self.ITEM_bias_minibatch_accumulator[sampled_item] / self.batch_size
@@ -809,9 +812,9 @@ cdef class MatrixFactorization_Cython_Epoch:
 
 
 
-        for num_sample_in_batch in range(self.mini_batch_sampled_users_counter):
+        for n_sample_in_batch in range(self.mini_batch_sampled_users_counter):
 
-            sampled_user = self.mini_batch_sampled_users[num_sample_in_batch]
+            sampled_user = self.mini_batch_sampled_users[n_sample_in_batch]
 
             if self.use_bias:
                 local_gradient_bias_user = self.USER_bias_minibatch_accumulator[sampled_user] / self.batch_size
@@ -945,7 +948,6 @@ cdef class MatrixFactorization_Cython_Epoch:
         cdef int neg_item_selected, n_seen_items = 0
 
 
-        # Skip users with no interactions or with no negative items
         # Skip users with no interactions or with no negative items
         while n_seen_items == 0 or n_seen_items == self.n_items:
 

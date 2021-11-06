@@ -195,7 +195,10 @@ class MF_cold_user_wrapper(BaseMatrixFactorizationRecommender):
         self.mf_recommender.save_model(folder_path, file_name = file_name + "_warm_users")
 
         data_dict_to_save = {"_cold_user_KNN_model_flag": self._cold_user_KNN_model_flag,
-                             "_cold_user_KNN_estimated_factors_flag": self._cold_user_KNN_estimated_factors_flag}
+                             "_cold_user_KNN_estimated_factors_flag": self._cold_user_KNN_estimated_factors_flag,
+                             "estimate_model_for_cold_users": self.estimate_model_for_cold_users,
+                             "estimate_model_for_cold_users_topK": self.estimate_model_for_cold_users_topK,
+                             }
 
         if self._cold_user_KNN_model_flag:
             self._ItemKNNRecommender.save_model(folder_path, file_name = file_name + "_cold_users")
@@ -212,6 +215,9 @@ class MF_cold_user_wrapper(BaseMatrixFactorizationRecommender):
         super(BaseMatrixFactorizationRecommender, self).load_model(folder_path, file_name = file_name)
 
         self.mf_recommender.load_model(folder_path, file_name = file_name + "_warm_users")
+
+        self.ITEM_factors = self.mf_recommender.ITEM_factors
+        self.USER_factors = self.mf_recommender.USER_factors
 
         if self._cold_user_KNN_model_flag:
             self._ItemKNNRecommender = ItemKNNCustomSimilarityRecommender(self.URM_train)

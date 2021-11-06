@@ -284,7 +284,7 @@ def read_data_split_and_search(dataset_name,
                                            highlight_best = True)
 
         result_loader.generate_latex_results(file_name + "{}_latex_results.txt".format("all_metrics"),
-                                           metrics_list = ["PRECISION", "RECALL", "MAP", "MRR", "NDCG", "F1", "HIT_RATE", "ARHR",
+                                           metrics_list = ["PRECISION", "RECALL", "MAP_MIN_DEN", "MRR", "NDCG", "F1", "HIT_RATE", "ARHR_ALL_HITS",
                                                            "NOVELTY", "DIVERSITY_MEAN_INTER_LIST", "DIVERSITY_HERFINDAHL", "COVERAGE_ITEM", "DIVERSITY_GINI", "SHANNON_ENTROPY"],
                                            cutoffs_list = [10],
                                            table_title = None,

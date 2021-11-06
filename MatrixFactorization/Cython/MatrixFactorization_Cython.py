@@ -21,17 +21,13 @@ class _MatrixFactorization_Cython(BaseMatrixFactorizationRecommender, Incrementa
     RECOMMENDER_NAME = "MatrixFactorization_Cython_Recommender"
 
 
-    def __init__(self, URM_train, verbose = True, recompile_cython = False, algorithm_name = "MF_BPR"):
+    def __init__(self, URM_train, verbose = True, algorithm_name = "MF_BPR"):
         super(_MatrixFactorization_Cython, self).__init__(URM_train, verbose = verbose)
 
         self.n_users, self.n_items = self.URM_train.shape
         self.normalize = False
         self.algorithm_name = algorithm_name
 
-        if recompile_cython:
-            print("Compiling in Cython")
-            self.runCompilationScript()
-            print("Compilation Complete")
 
 
     def fit(self, epochs=300, batch_size = 1000,
@@ -142,27 +138,6 @@ class _MatrixFactorization_Cython(BaseMatrixFactorizationRecommender, Incrementa
 
     def _run_epoch(self, num_epoch):
        self.cythonEpoch.epochIteration_Cython()
-
-
-
-
-    def runCompilationScript(self):
-
-        # Run compile script setting the working directory to ensure the compiled file are contained in the
-        # appropriate subfolder and not the project root
-
-        file_subfolder = "/MatrixFactorization/Cython"
-        file_to_compile_list = ['MatrixFactorization_Cython_Epoch.pyx']
-
-        run_compile_subprocess(file_subfolder, file_to_compile_list)
-
-        print("{}: Compiled module {} in subfolder: {}".format(self.RECOMMENDER_NAME, file_to_compile_list, file_subfolder))
-
-        # Command to run compilation script
-        # python compile_script.py MatrixFactorization_Cython_Epoch.pyx build_ext --inplace
-
-        # Command to generate html report
-        # cython -a MatrixFactorization_Cython_Epoch.pyx
 
 
 

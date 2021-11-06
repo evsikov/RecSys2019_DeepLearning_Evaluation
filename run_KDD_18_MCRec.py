@@ -191,9 +191,9 @@ def read_data_split_and_search(dataset_name,
 
         if dataset_name == "movielens100k":
             """
-            The code provided by the original authors of MCRec can be used only for the original data.
+            The code provided in the original repository of MCRec can be used only for the original data.
             Here I am passing to the Wrapper the URM_train matrix that is only required for its shape,
-            the train will be done using the preprocessed data the original authors provided
+            the training will be done using the preprocessed data provided in the original repository
             """
             from Conferences.KDD.MCRec_github.code.Dataset import Dataset
 
@@ -268,7 +268,7 @@ def read_data_split_and_search(dataset_name,
                                            highlight_best = True)
 
         result_loader.generate_latex_results(file_name + "{}_latex_results.txt".format("all_metrics"),
-                                           metrics_list = ["PRECISION", "RECALL", "MAP", "MRR", "NDCG", "F1", "HIT_RATE", "ARHR",
+                                           metrics_list = ["PRECISION", "RECALL", "MAP_MIN_DEN", "MRR", "NDCG", "F1", "HIT_RATE", "ARHR_ALL_HITS",
                                                            "NOVELTY", "DIVERSITY_MEAN_INTER_LIST", "DIVERSITY_HERFINDAHL", "COVERAGE_ITEM", "DIVERSITY_GINI", "SHANNON_ENTROPY"],
                                            cutoffs_list = [10],
                                            table_title = None,

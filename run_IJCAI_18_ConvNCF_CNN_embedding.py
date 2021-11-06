@@ -433,7 +433,7 @@ if __name__ == '__main__':
                 traceback.print_exc()
 
         read_permutation_results(output_folder_path, input_flags.n_permutations, 10,
-                                 ["PRECISION", "MAP", "NDCG", "F1", "HIT_RATE"],
+                                 ["PRECISION", "MAP_MIN_DEN", "NDCG", "F1", "HIT_RATE"],
                                  file_result_name_root = "latex_fit_ablation_results",
                                  convolution_model_name = ConvNCF_RecommenderWrapper.RECOMMENDER_NAME,
                                  pretrained_model_name = 'BPRMF',
@@ -468,7 +468,7 @@ if __name__ == '__main__':
 
 
         read_permutation_results(output_folder_path, input_flags.n_permutations, 10,
-                                 ["PRECISION", "MAP", "NDCG", "F1", "HIT_RATE"],
+                                 ["PRECISION", "MAP_MIN_DEN", "NDCG", "F1", "HIT_RATE"],
                                  file_result_name_root = "latex_evaluation_ablation_results",
                                  convolution_model_name = ConvNCF_RecommenderWrapper.RECOMMENDER_NAME,
                                  pretrained_model_name = 'BPRMF',

@@ -7,9 +7,11 @@ Created on 14/06/18
 """
 
 from Base.BaseMatrixFactorizationRecommender import BaseMatrixFactorizationRecommender
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 from sklearn.utils.extmath import randomized_svd
 import scipy.sparse as sps
 import numpy as np
+import time
 
 
 
@@ -33,6 +35,7 @@ class PureSVDRecommender(BaseMatrixFactorizationRecommender):
 
     def fit(self, num_factors=100, random_seed = None):
 
+        start_time = time.time()
         self._print("Computing SVD decomposition...")
 
         U, Sigma, QT = randomized_svd(self.URM_train,
@@ -45,7 +48,8 @@ class PureSVDRecommender(BaseMatrixFactorizationRecommender):
         self.USER_factors = U_s
         self.ITEM_factors = QT.T
 
-        self._print("Computing SVD decomposition... Done!")
+        new_time_value, new_time_unit = seconds_to_biggest_unit(time.time()-start_time)
+        self._print("Computing SVD decomposition... done in {:.2f} {}".format( new_time_value, new_time_unit))
 
 
 

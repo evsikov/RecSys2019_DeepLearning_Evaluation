@@ -9,10 +9,9 @@ Created on 23/10/17
 import numpy as np
 import time, sys
 import scipy.sparse as sps
-
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 class Compute_Similarity_Euclidean:
-
 
     def __init__(self, dataMatrix, topK=100, shrink = 0, normalize=False, normalize_avg_row=False,
                  similarity_from_distance_mode ="lin", row_weights = None, **args):
@@ -26,8 +25,8 @@ class Compute_Similarity_Euclidean:
         :param row_weights:         Multiply the values in each row by a specified value. Array
         :param similarity_from_distance_mode:       "exp"        euclidean_similarity = 1/(e ^ euclidean_distance)
                                                     "lin"        euclidean_similarity = 1/(1 + euclidean_distance)
-                                                    "log"        euclidean_similarity = 1/(1 + euclidean_distance)
-        :param args:                accepts other parameters not needed by the current object
+                                                    "log"        euclidean_similarity = 1/log(1 + euclidean_distance)
+        :param args:                accepts other arguments not needed by the current object
 
         """
 
@@ -53,7 +52,7 @@ class Compute_Similarity_Euclidean:
         elif similarity_from_distance_mode == "log":
             self.similarity_is_log = True
         else:
-            raise ValueError("Compute_Similarity_Euclidean: value for parameter 'mode' not recognized."
+            raise ValueError("Compute_Similarity_Euclidean: value for argument 'mode' not recognized."
                              " Allowed values are: 'exp', 'lin', 'log'."
                              " Passed value was '{}'".format(similarity_from_distance_mode))
 
@@ -95,10 +94,7 @@ class Compute_Similarity_Euclidean:
 
         start_time = time.time()
         start_time_print_batch = start_time
-        processedItems = 0
-
-
-        #self.dataMatrix = self.dataMatrix.toarray()
+        processed_items = 0
 
         start_col_local = 0
         end_col_local = self.n_columns
@@ -120,60 +116,36 @@ class Compute_Similarity_Euclidean:
         # Compute all similarities for each item using vectorization
         while start_col_block < end_col_local:
 
-            # Add previous block size
-            processedItems += this_block_size
-
+            # Compute block first and last column
             end_col_block = min(start_col_block + block_size, end_col_local)
             this_block_size = end_col_block-start_col_block
 
-            if time.time() - start_time_print_batch >= 30 or end_col_block==end_col_local:
-                columnPerSec = processedItems / (time.time() - start_time + 1e-9)
-
-                print("Similarity column {} ( {:2.0f} % ), {:.2f} column/sec, elapsed time {:.2f} min".format(
-                    processedItems, processedItems / (end_col_local - start_col_local) * 100, columnPerSec, (time.time() - start_time)/ 60))
-
-                sys.stdout.flush()
-                sys.stderr.flush()
-
-                start_time_print_batch = time.time()
-
-
             # All data points for a given item
             item_data = self.dataMatrix[:, start_col_block:end_col_block]
-            item_data = item_data.toarray().squeeze()
+            item_data = item_data.toarray()
 
-            # If only 1 feature avoid last dimension to disappear
-            if item_data.ndim == 1:
-                item_data = np.atleast_2d(item_data)
-
+            # Compute item similarities
             if self.use_row_weights:
                 this_block_weights = self.dataMatrix_weighted.T.dot(item_data)
-
             else:
-                # Compute item similarities
                 this_block_weights = self.dataMatrix.T.dot(item_data)
-
 
 
             for col_index_in_block in range(this_block_size):
 
                 if this_block_size == 1:
-                    this_column_weights = this_block_weights
+                    this_column_weights = this_block_weights.ravel()
                 else:
                     this_column_weights = this_block_weights[:,col_index_in_block]
 
 
                 columnIndex = col_index_in_block + start_col_block
 
-                # item_data = self.dataMatrix[:,columnIndex]
-
                 # (a-b)^2 = a^2 + b^2 - 2ab
                 item_distance = item_distance_initial.copy()
                 item_distance += item_distance_initial[columnIndex]
 
-                # item_distance -= 2*item_data.T.dot(self.dataMatrix).toarray().ravel()
                 item_distance -= 2 * this_column_weights
-
                 item_distance[columnIndex] = 0.0
 
 
@@ -182,12 +154,14 @@ class Compute_Similarity_Euclidean:
 
 
                 if self.normalize:
-                    item_distance /=  sumOfSquared[columnIndex] * sumOfSquared
+                    denominator = sumOfSquared[columnIndex] * sumOfSquared
+                    item_distance[denominator!=0.0] /=  denominator[denominator!=0.0]
 
                 if self.normalize_avg_row:
                     item_distance /= self.n_rows
 
-                item_distance = np.sqrt(item_distance)
+                nonzero_distance_mask = item_distance > 0.0
+                item_distance[nonzero_distance_mask] = np.sqrt(item_distance[nonzero_distance_mask])
 
                 if self.similarity_is_exp:
                     item_similarity = 1/(np.exp(item_distance) + self.shrink + 1e-9)
@@ -203,9 +177,7 @@ class Compute_Similarity_Euclidean:
 
 
                 item_similarity[columnIndex] = 0.0
-
                 this_column_weights = item_similarity
-
 
 
                 # Sort indices and select TopK
@@ -225,8 +197,21 @@ class Compute_Similarity_Euclidean:
                 rows.extend(top_k_idx[notZerosMask])
                 cols.extend(np.ones(numNotZeros) * columnIndex)
 
+            # Add previous block size
+            start_col_block += this_block_size
+            processed_items += this_block_size
 
-            start_col_block += block_size
+            if time.time() - start_time_print_batch >= 300 or end_col_block==end_col_local:
+                column_per_sec = processed_items / (time.time() - start_time + 1e-9)
+                new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time)
+
+                print("Similarity column {} ({:4.1f}%), {:.2f} column/sec. Elapsed time {:.2f} {}".format(
+                    processed_items, processed_items / (end_col_local - start_col_local) * 100, column_per_sec, new_time_value, new_time_unit))
+
+                sys.stdout.flush()
+                sys.stderr.flush()
+
+                start_time_print_batch = time.time()
 
 
         # End while on columns

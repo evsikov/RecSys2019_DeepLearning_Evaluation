@@ -8,6 +8,7 @@ Created on 06/06/18
 
 import numpy as np
 import scipy.sparse as sps
+import warnings
 
 from Base.Similarity.Compute_Similarity_Python import Compute_Similarity_Python
 from Base.Similarity.Compute_Similarity_Euclidean import Compute_Similarity_Euclidean
@@ -32,10 +33,10 @@ class Compute_Similarity:
     def __init__(self, dataMatrix, use_implementation = "density", similarity = None, **args):
         """
         Interface object that will call the appropriate similarity implementation
-        :param dataMatrix:
+        :param dataMatrix:              scipy sparse matrix |features|x|items| or |users|x|items|
         :param use_implementation:      "density" will choose the most efficient implementation automatically
                                         "cython" will use the cython implementation, if available. Most efficient for sparse matrix
-                                        "python" will use the python implementation. Most efficent for dense matrix
+                                        "python" will use the python implementation. Most efficient for dense matrix
         :param similarity:              the type of similarity to use, see SimilarityFunction enum
         :param args:                    other args required by the specific similarity implementation
         """
@@ -51,9 +52,19 @@ class Compute_Similarity:
 
         else:
 
+            columns_with_full_features = np.sum(np.ediff1d(sps.csc_matrix(dataMatrix).indptr) == dataMatrix.shape[0])
+
+            if similarity in ['dice', 'jaccard', 'tversky'] and columns_with_full_features >= dataMatrix.shape[1]/2:
+                warnings.warn("Compute_Similarity: {:.2f}% of the columns have all features, "
+                              "set-based similarity heuristics will not be able to discriminate between the columns.".format(columns_with_full_features/dataMatrix.shape[1]*100))
+
+            if dataMatrix.shape[0] == 1 and columns_with_full_features >= dataMatrix.shape[1]/2:
+                warnings.warn("Compute_Similarity: {:.2f}% of the columns have a value for the single feature the data has, "
+                              "most similarity heuristics will not be able to discriminate between the columns.".format(columns_with_full_features/dataMatrix.shape[1]*100))
+
             assert not (dataMatrix.shape[0] == 1 and dataMatrix.nnz == dataMatrix.shape[1]),\
-                "Compute_Similarity: data has only 1 feature (shape: {}) with dense values," \
-                " vector and set based similarities are not defined on 1-dimensional dense data," \
+                "Compute_Similarity: data has only 1 feature (shape: {}) with values in all columns," \
+                " cosine and set-based similarities are not able to discriminate 1-dimensional dense data," \
                 " use Euclidean similarity instead.".format(dataMatrix.shape)
 
             if similarity is not None:

@@ -25,6 +25,9 @@ def json_not_serializable_handler(o):
     if isinstance(o, np.integer):
         return int(o)
 
+    if isinstance(o, np.bool_):
+        return bool(o)
+
     raise TypeError("json_not_serializable_handler: object '{}' is not serializable.".format(type(o)))
 
 
@@ -32,7 +35,7 @@ def json_not_serializable_handler(o):
 class DataIO(object):
     """ DataIO"""
 
-    _DEFAULT_TEMP_FOLDER = ".temp_DataIO_"
+    _DEFAULT_TEMP_FOLDER = ".temp"
 
     # _MAX_PATH_LENGTH_LINUX = 4096
     _MAX_PATH_LENGTH_WINDOWS = 255

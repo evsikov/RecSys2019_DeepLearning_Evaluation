@@ -210,11 +210,12 @@ def run_KNNRecommender_on_similarity_type(similarity_type, parameterSearch,
 
     original_parameter_search_space = parameter_search_space
 
-    hyperparameters_range_dictionary = {}
-    hyperparameters_range_dictionary["topK"] = Integer(5, 1000)
-    hyperparameters_range_dictionary["shrink"] = Integer(0, 1000)
-    hyperparameters_range_dictionary["similarity"] = Categorical([similarity_type])
-    hyperparameters_range_dictionary["normalize"] = Categorical([True, False])
+    hyperparameters_range_dictionary = {
+        "topK": Integer(5, 1000),
+        "shrink": Integer(0, 1000),
+        "similarity": Categorical([similarity_type]),
+        "normalize": Categorical([True, False]),
+    }
 
     is_set_similarity = similarity_type in ["tversky", "dice", "jaccard", "tanimoto"]
 
@@ -515,10 +516,11 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is P3alphaRecommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["topK"] = Integer(5, 1000)
-            hyperparameters_range_dictionary["alpha"] = Real(low = 0, high = 2, prior = 'uniform')
-            hyperparameters_range_dictionary["normalize_similarity"] = Categorical([True, False])
+            hyperparameters_range_dictionary = {
+                "topK": Integer(5, 1000),
+                "alpha": Real(low = 0, high = 2, prior = 'uniform'),
+                "normalize_similarity": Categorical([True, False]),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -532,11 +534,12 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is RP3betaRecommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["topK"] = Integer(5, 1000)
-            hyperparameters_range_dictionary["alpha"] = Real(low = 0, high = 2, prior = 'uniform')
-            hyperparameters_range_dictionary["beta"] = Real(low = 0, high = 2, prior = 'uniform')
-            hyperparameters_range_dictionary["normalize_similarity"] = Categorical([True, False])
+            hyperparameters_range_dictionary = {
+                "topK": Integer(5, 1000),
+                "alpha": Real(low = 0, high = 2, prior = 'uniform'),
+                "beta": Real(low = 0, high = 2, prior = 'uniform'),
+                "normalize_similarity": Categorical([True, False]),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -551,16 +554,17 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is MatrixFactorization_FunkSVD_Cython:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["sgd_mode"] = Categorical(["sgd", "adagrad", "adam"])
-            hyperparameters_range_dictionary["epochs"] = Categorical([500])
-            hyperparameters_range_dictionary["use_bias"] = Categorical([True, False])
-            hyperparameters_range_dictionary["batch_size"] = Categorical([1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
-            hyperparameters_range_dictionary["num_factors"] = Integer(1, 200)
-            hyperparameters_range_dictionary["item_reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["user_reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["learning_rate"] = Real(low = 1e-4, high = 1e-1, prior = 'log-uniform')
-            hyperparameters_range_dictionary["negative_interactions_quota"] = Real(low = 0.0, high = 0.5, prior = 'uniform')
+            hyperparameters_range_dictionary = {
+                "sgd_mode": Categorical(["sgd", "adagrad", "adam"]),
+                "epochs": Categorical([500]),
+                "use_bias": Categorical([True, False]),
+                "batch_size": Categorical([1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]),
+                "num_factors": Integer(1, 200),
+                "item_reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "user_reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "learning_rate": Real(low = 1e-4, high = 1e-1, prior = 'log-uniform'),
+                "negative_interactions_quota": Real(low = 0.0, high = 0.5, prior = 'uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -573,16 +577,17 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is MatrixFactorization_AsySVD_Cython:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["sgd_mode"] = Categorical(["sgd", "adagrad", "adam"])
-            hyperparameters_range_dictionary["epochs"] = Categorical([500])
-            hyperparameters_range_dictionary["use_bias"] = Categorical([True, False])
-            hyperparameters_range_dictionary["batch_size"] = Categorical([1])
-            hyperparameters_range_dictionary["num_factors"] = Integer(1, 200)
-            hyperparameters_range_dictionary["item_reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["user_reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["learning_rate"] = Real(low = 1e-4, high = 1e-1, prior = 'log-uniform')
-            hyperparameters_range_dictionary["negative_interactions_quota"] = Real(low = 0.0, high = 0.5, prior = 'uniform')
+            hyperparameters_range_dictionary = {
+                "sgd_mode": Categorical(["sgd", "adagrad", "adam"]),
+                "epochs": Categorical([500]),
+                "use_bias": Categorical([True, False]),
+                "batch_size": Categorical([1]),
+                "num_factors": Integer(1, 200),
+                "item_reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "user_reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "learning_rate": Real(low = 1e-4, high = 1e-1, prior = 'log-uniform'),
+                "negative_interactions_quota": Real(low = 0.0, high = 0.5, prior = 'uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -595,14 +600,15 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is MatrixFactorization_BPR_Cython:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["sgd_mode"] = Categorical(["sgd", "adagrad", "adam"])
-            hyperparameters_range_dictionary["epochs"] = Categorical([1500])
-            hyperparameters_range_dictionary["num_factors"] = Integer(1, 200)
-            hyperparameters_range_dictionary["batch_size"] = Categorical([1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024])
-            hyperparameters_range_dictionary["positive_reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["negative_reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["learning_rate"] = Real(low = 1e-4, high = 1e-1, prior = 'log-uniform')
+            hyperparameters_range_dictionary = {
+                "sgd_mode": Categorical(["sgd", "adagrad", "adam"]),
+                "epochs": Categorical([1500]),
+                "num_factors": Integer(1, 200),
+                "batch_size": Categorical([1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]),
+                "positive_reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "negative_reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "learning_rate": Real(low = 1e-4, high = 1e-1, prior = 'log-uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -616,12 +622,14 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is IALSRecommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["num_factors"] = Integer(1, 200)
-            hyperparameters_range_dictionary["confidence_scaling"] = Categorical(["linear", "log"])
-            hyperparameters_range_dictionary["alpha"] = Real(low = 1e-3, high = 50.0, prior = 'log-uniform')
-            hyperparameters_range_dictionary["epsilon"] = Real(low = 1e-3, high = 10.0, prior = 'log-uniform')
-            hyperparameters_range_dictionary["reg"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
+            hyperparameters_range_dictionary = {
+                "num_factors": Integer(1, 200),
+                "epochs": Categorical([300]),
+                "confidence_scaling": Categorical(["linear", "log"]),
+                "alpha": Real(low = 1e-3, high = 50.0, prior = 'log-uniform'),
+                "epsilon": Real(low = 1e-3, high = 10.0, prior = 'log-uniform'),
+                "reg": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -635,8 +643,9 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is PureSVDRecommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["num_factors"] = Integer(1, 350)
+            hyperparameters_range_dictionary = {
+                "num_factors": Integer(1, 350),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -650,11 +659,12 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is NMFRecommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["num_factors"] = Integer(1, 350)
-            hyperparameters_range_dictionary["solver"] = Categorical(["coordinate_descent", "multiplicative_update"])
-            hyperparameters_range_dictionary["init_type"] = Categorical(["random", "nndsvda"])
-            hyperparameters_range_dictionary["beta_loss"] = Categorical(["frobenius", "kullback-leibler"])
+            hyperparameters_range_dictionary = {
+                "num_factors": Integer(1, 350),
+                "solver": Categorical(["coordinate_descent", "multiplicative_update"]),
+                "init_type": Categorical(["random", "nndsvda"]),
+                "beta_loss": Categorical(["frobenius", "kullback-leibler"]),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -668,14 +678,15 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is SLIM_BPR_Cython:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["topK"] = Integer(5, 1000)
-            hyperparameters_range_dictionary["epochs"] = Categorical([1500])
-            hyperparameters_range_dictionary["symmetric"] = Categorical([True, False])
-            hyperparameters_range_dictionary["sgd_mode"] = Categorical(["sgd", "adagrad", "adam"])
-            hyperparameters_range_dictionary["lambda_i"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["lambda_j"] = Real(low = 1e-5, high = 1e-2, prior = 'log-uniform')
-            hyperparameters_range_dictionary["learning_rate"] = Real(low = 1e-4, high = 1e-1, prior = 'log-uniform')
+            hyperparameters_range_dictionary = {
+                "topK": Integer(5, 1000),
+                "epochs": Categorical([1500]),
+                "symmetric": Categorical([True, False]),
+                "sgd_mode": Categorical(["sgd", "adagrad", "adam"]),
+                "lambda_i": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "lambda_j": Real(low = 1e-5, high = 1e-2, prior = 'log-uniform'),
+                "learning_rate": Real(low = 1e-4, high = 1e-1, prior = 'log-uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -692,10 +703,11 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is SLIMElasticNetRecommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["topK"] = Integer(5, 1000)
-            hyperparameters_range_dictionary["l1_ratio"] = Real(low = 1e-5, high = 1.0, prior = 'log-uniform')
-            hyperparameters_range_dictionary["alpha"] = Real(low = 1e-3, high = 1.0, prior = 'uniform')
+            hyperparameters_range_dictionary = {
+                "topK": Integer(5, 1000),
+                "l1_ratio": Real(low = 1e-5, high = 1.0, prior = 'log-uniform'),
+                "alpha": Real(low = 1e-3, high = 1.0, prior = 'uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],
@@ -709,10 +721,11 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
 
         if recommender_class is EASE_R_Recommender:
 
-            hyperparameters_range_dictionary = {}
-            hyperparameters_range_dictionary["topK"] = Categorical([None])#Integer(5, 3000)
-            hyperparameters_range_dictionary["normalize_matrix"] = Categorical([False])
-            hyperparameters_range_dictionary["l2_norm"] = Real(low = 1e0, high = 1e7, prior = 'log-uniform')
+            hyperparameters_range_dictionary = {
+                "topK": Categorical([None]),
+                "normalize_matrix": Categorical([False]),
+                "l2_norm": Real(low = 1e0, high = 1e7, prior = 'log-uniform'),
+            }
 
             recommender_input_args = SearchInputRecommenderArgs(
                 CONSTRUCTOR_POSITIONAL_ARGS = [URM_train],

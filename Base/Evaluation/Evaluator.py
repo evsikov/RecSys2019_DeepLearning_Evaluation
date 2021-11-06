@@ -13,30 +13,34 @@ import time, sys, copy
 from enum import Enum
 from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
-from Base.Evaluation.metrics import roc_auc, precision, precision_recall_min_denominator, recall, MAP, MRR, ndcg, arhr, RMSE, \
-    Novelty, Coverage_Item, _Metrics_Object, Coverage_User, Gini_Diversity, Shannon_Entropy, Diversity_MeanInterList, Diversity_Herfindahl, AveragePopularity
+from Base.Evaluation.metrics import precision, precision_recall_min_denominator, recall, MAP, MAP_MIN_DEN, MRR, HIT_RATE, ndcg, arhr_all_hits, \
+    Novelty, Coverage_Item, Coverage_Item_HIT, Items_In_GT, _Metrics_Object, Coverage_User, Coverage_User_HIT, Users_In_GT, Gini_Diversity, Shannon_Entropy, Diversity_MeanInterList,\
+    Diversity_Herfindahl, AveragePopularity
 
 
 class EvaluatorMetrics(Enum):
 
-    ROC_AUC = "ROC_AUC"
     PRECISION = "PRECISION"
     PRECISION_RECALL_MIN_DEN = "PRECISION_RECALL_MIN_DEN"
     RECALL = "RECALL"
     MAP = "MAP"
+    MAP_MIN_DEN = "MAP_MIN_DEN"
     MRR = "MRR"
     NDCG = "NDCG"
     F1 = "F1"
     HIT_RATE = "HIT_RATE"
-    ARHR = "ARHR"
-    # RMSE = "RMSE"
+    ARHR = "ARHR_ALL_HITS"
     NOVELTY = "NOVELTY"
     AVERAGE_POPULARITY = "AVERAGE_POPULARITY"
     DIVERSITY_SIMILARITY = "DIVERSITY_SIMILARITY"
     DIVERSITY_MEAN_INTER_LIST = "DIVERSITY_MEAN_INTER_LIST"
     DIVERSITY_HERFINDAHL = "DIVERSITY_HERFINDAHL"
     COVERAGE_ITEM = "COVERAGE_ITEM"
+    COVERAGE_ITEM_HIT = "COVERAGE_ITEM_HIT"
+    ITEMS_IN_GT = "ITEMS_IN_GT"
     COVERAGE_USER = "COVERAGE_USER"
+    COVERAGE_USER_HIT = "COVERAGE_USER_HIT"
+    USERS_IN_GT = "USERS_IN_GT"
     DIVERSITY_GINI = "DIVERSITY_GINI"
     SHANNON_ENTROPY = "SHANNON_ENTROPY"
 
@@ -46,9 +50,6 @@ def _create_empty_metrics_dict(cutoff_list, n_items, n_users, URM_train, URM_tes
 
     empty_dict = {}
 
-    # global_RMSE_object = RMSE(URM_train + URM_test)
-
-
     for cutoff in cutoff_list:
 
         cutoff_dict = {}
@@ -56,6 +57,12 @@ def _create_empty_metrics_dict(cutoff_list, n_items, n_users, URM_train, URM_tes
         for metric in EvaluatorMetrics:
             if metric == EvaluatorMetrics.COVERAGE_ITEM:
                 cutoff_dict[metric.value] = Coverage_Item(n_items, ignore_items)
+
+            elif metric == EvaluatorMetrics.COVERAGE_ITEM_HIT:
+                cutoff_dict[metric.value] = Coverage_Item_HIT(n_items, ignore_items)
+
+            elif metric == EvaluatorMetrics.ITEMS_IN_GT:
+                cutoff_dict[metric.value] = Items_In_GT(URM_test, ignore_items)
 
             elif metric == EvaluatorMetrics.DIVERSITY_GINI:
                 cutoff_dict[metric.value] = Gini_Diversity(n_items, ignore_items)
@@ -65,6 +72,12 @@ def _create_empty_metrics_dict(cutoff_list, n_items, n_users, URM_train, URM_tes
 
             elif metric == EvaluatorMetrics.COVERAGE_USER:
                 cutoff_dict[metric.value] = Coverage_User(n_users, ignore_users)
+
+            elif metric == EvaluatorMetrics.COVERAGE_USER_HIT:
+                cutoff_dict[metric.value] = Coverage_User_HIT(n_users, ignore_users)
+
+            elif metric == EvaluatorMetrics.USERS_IN_GT:
+                cutoff_dict[metric.value] = Users_In_GT(URM_test, ignore_users)
 
             elif metric == EvaluatorMetrics.DIVERSITY_MEAN_INTER_LIST:
                 cutoff_dict[metric.value] = Diversity_MeanInterList(n_items, cutoff)
@@ -81,11 +94,14 @@ def _create_empty_metrics_dict(cutoff_list, n_items, n_users, URM_train, URM_tes
             elif metric == EvaluatorMetrics.MAP:
                 cutoff_dict[metric.value] = MAP()
 
+            elif metric == EvaluatorMetrics.MAP_MIN_DEN:
+                cutoff_dict[metric.value] = MAP_MIN_DEN()
+
             elif metric == EvaluatorMetrics.MRR:
                 cutoff_dict[metric.value] = MRR()
 
-            # elif metric == EvaluatorMetrics.RMSE:
-            #     cutoff_dict[metric.value] = global_RMSE_object
+            elif metric == EvaluatorMetrics.HIT_RATE:
+                cutoff_dict[metric.value] = HIT_RATE()
 
             elif metric == EvaluatorMetrics.DIVERSITY_SIMILARITY:
                     if diversity_similarity_object is not None:
@@ -118,8 +134,6 @@ def get_result_string(results_run, n_decimals=7):
         output_str += "\n"
 
     return output_str
-
-
 
 def _remove_item_interactions(URM, item_list):
 
@@ -196,7 +210,7 @@ class Evaluator(object):
             users_to_evaluate_mask = np.logical_or(users_to_evaluate_mask, new_mask)
 
         if not np.all(users_to_evaluate_mask):
-            self._print("Ignoring {} ({:.2f}%) Users that have less than {} test interactions".format(np.sum(users_to_evaluate_mask),
+            self._print("Ignoring {} ({:4.1f}%) Users that have less than {} test interactions".format(np.sum(users_to_evaluate_mask),
                                                                                                      100*np.sum(np.logical_not(users_to_evaluate_mask))/len(users_to_evaluate_mask), min_ratings_per_user))
 
         self.users_to_evaluate = np.arange(self.n_users)[users_to_evaluate_mask]
@@ -242,11 +256,9 @@ class Evaluator(object):
         if self._n_users_evaluated > 0:
 
             for cutoff in self.cutoff_list:
-
                 results_current_cutoff = results_dict[cutoff]
 
                 for key in results_current_cutoff.keys():
-
                     value = results_current_cutoff[key]
 
                     if isinstance(value, _Metrics_Object):
@@ -265,7 +277,6 @@ class Evaluator(object):
 
         else:
             self._print("WARNING: No users had a sufficient number of relevant items")
-
 
         if self.ignore_items_flag:
             recommender_object.reset_items_to_ignore()
@@ -331,22 +342,25 @@ class Evaluator(object):
                 is_relevant_current_cutoff = is_relevant[0:cutoff]
                 recommended_items_current_cutoff = recommended_items[0:cutoff]
 
-                results_current_cutoff[EvaluatorMetrics.ROC_AUC.value]              += roc_auc(is_relevant_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.PRECISION.value]            += precision(is_relevant_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.PRECISION_RECALL_MIN_DEN.value]   += precision_recall_min_denominator(is_relevant_current_cutoff, len(relevant_items))
                 results_current_cutoff[EvaluatorMetrics.RECALL.value]               += recall(is_relevant_current_cutoff, relevant_items)
                 results_current_cutoff[EvaluatorMetrics.NDCG.value]                 += ndcg(recommended_items_current_cutoff, relevant_items, relevance=self.get_user_test_ratings(test_user), at=cutoff)
-                results_current_cutoff[EvaluatorMetrics.HIT_RATE.value]             += is_relevant_current_cutoff.sum()
-                results_current_cutoff[EvaluatorMetrics.ARHR.value]                 += arhr(is_relevant_current_cutoff)
+                results_current_cutoff[EvaluatorMetrics.ARHR.value]                 += arhr_all_hits(is_relevant_current_cutoff)
 
                 results_current_cutoff[EvaluatorMetrics.MRR.value].add_recommendations(is_relevant_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.MAP.value].add_recommendations(is_relevant_current_cutoff, relevant_items)
+                results_current_cutoff[EvaluatorMetrics.MAP_MIN_DEN.value].add_recommendations(is_relevant_current_cutoff, relevant_items)
+                results_current_cutoff[EvaluatorMetrics.HIT_RATE.value].add_recommendations(is_relevant_current_cutoff)
+
                 results_current_cutoff[EvaluatorMetrics.NOVELTY.value].add_recommendations(recommended_items_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.AVERAGE_POPULARITY.value].add_recommendations(recommended_items_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.DIVERSITY_GINI.value].add_recommendations(recommended_items_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.SHANNON_ENTROPY.value].add_recommendations(recommended_items_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.COVERAGE_ITEM.value].add_recommendations(recommended_items_current_cutoff)
+                results_current_cutoff[EvaluatorMetrics.COVERAGE_ITEM_HIT.value].add_recommendations(recommended_items_current_cutoff, is_relevant_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.COVERAGE_USER.value].add_recommendations(recommended_items_current_cutoff, test_user)
+                results_current_cutoff[EvaluatorMetrics.COVERAGE_USER_HIT.value].add_recommendations(is_relevant_current_cutoff, test_user)
                 results_current_cutoff[EvaluatorMetrics.DIVERSITY_MEAN_INTER_LIST.value].add_recommendations(recommended_items_current_cutoff)
                 results_current_cutoff[EvaluatorMetrics.DIVERSITY_HERFINDAHL.value].add_recommendations(recommended_items_current_cutoff)
 
@@ -354,12 +368,12 @@ class Evaluator(object):
                     results_current_cutoff[EvaluatorMetrics.DIVERSITY_SIMILARITY.value].add_recommendations(recommended_items_current_cutoff)
 
 
-        if time.time() - self._start_time_print > 30 or self._n_users_evaluated==len(self.users_to_evaluate):
+        if time.time() - self._start_time_print > 300 or self._n_users_evaluated==len(self.users_to_evaluate):
 
             elapsed_time = time.time()-self._start_time
             new_time_value, new_time_unit = seconds_to_biggest_unit(elapsed_time)
 
-            self._print("Processed {} ( {:.2f}% ) in {:.2f} {}. Users per second: {:.0f}".format(
+            self._print("Processed {} ({:4.1f}%) in {:.2f} {}. Users per second: {:.0f}".format(
                           self._n_users_evaluated,
                           100.0* float(self._n_users_evaluated)/len(self.users_to_evaluate),
                           new_time_value, new_time_unit,
@@ -404,8 +418,8 @@ class EvaluatorHoldout(Evaluator):
     def _run_evaluation_on_selected_users(self, recommender_object, users_to_evaluate, block_size = None):
 
         if block_size is None:
-            block_size = min(1000, int(1e8/self.n_items))
-            block_size = min(block_size, len(users_to_evaluate))
+            # Reduce block size if estimated memory requirement exceeds 4 GB
+            block_size = min([1000, int(4*1e9*8/64/self.n_items), len(users_to_evaluate)])
 
 
         results_dict = _create_empty_metrics_dict(self.cutoff_list,

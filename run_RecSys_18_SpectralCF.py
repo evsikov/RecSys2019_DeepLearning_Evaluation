@@ -325,7 +325,7 @@ def read_data_split_and_search(dataset_name, cold_start = False, cold_items=None
 
 
         result_loader.generate_latex_results(file_name + "{}_latex_results.txt".format("article_metrics"),
-                                           metrics_list = ["RECALL", "MAP"],
+                                           metrics_list = ["RECALL", "MAP_MIN_DEN"],
                                            cutoffs_list = cutoffs_to_report_list,
                                            table_title = None,
                                            highlight_best = True)
@@ -337,7 +337,7 @@ def read_data_split_and_search(dataset_name, cold_start = False, cold_items=None
                                            highlight_best = True)
 
         result_loader.generate_latex_results(file_name + "{}_latex_results.txt".format("all_metrics"),
-                                           metrics_list = ["PRECISION", "RECALL", "MAP", "MRR", "NDCG", "F1", "HIT_RATE", "ARHR",
+                                           metrics_list = ["PRECISION", "RECALL", "MAP_MIN_DEN", "MRR", "NDCG", "F1", "HIT_RATE", "ARHR_ALL_HITS",
                                                            "NOVELTY", "DIVERSITY_MEAN_INTER_LIST", "DIVERSITY_HERFINDAHL", "COVERAGE_ITEM", "DIVERSITY_GINI", "SHANNON_ENTROPY"],
                                            cutoffs_list = [50],
                                            table_title = None,

@@ -151,7 +151,7 @@ class Movielens100KReader(object):
 
                 line[-1] = line[-1].replace("\n", "")
 
-                genre_list = [int(genre_bit) for genre_bit in line[5:]]
+                genre_list = [index for index in range(len(line[5:])) if line[5:][index] == '1']
                 item_id = int(line[0])-1
 
                 ICM_builder.add_data_lists([item_id]*len(genre_list), genre_list, [1.0]*len(genre_list))

@@ -32,6 +32,7 @@ ELSE:
 
 
 from Base.Recommender_utils import similarityMatrixTopK, check_matrix
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 import numpy as np
 import cython
 cimport numpy as np
@@ -58,7 +59,7 @@ cdef struct BPR_sample:
 @cython.overflowcheck(False)
 cdef class SLIM_BPR_Cython_Epoch:
 
-    cdef int n_users, n_items, batch_size
+    cdef int n_users, n_items
     cdef int topK
     cdef int symmetric, train_with_sparse_weights, final_model_sparse_weights
 
@@ -88,7 +89,7 @@ cdef class SLIM_BPR_Cython_Epoch:
                  train_with_sparse_weights = False,
                  final_model_sparse_weights = True,
                  learning_rate = 0.01, li_reg = 0.0, lj_reg = 0.0,
-                 batch_size = 1, topK = 150, symmetric = True,
+                 topK = 150, symmetric = True,
                  verbose = False, random_seed = None,
                  sgd_mode='adam', gamma=0.995, beta_1=0.9, beta_2=0.999):
 
@@ -99,13 +100,11 @@ cdef class SLIM_BPR_Cython_Epoch:
         URM_mask = check_matrix(URM_mask, 'csr')
         URM_mask = URM_mask.sorted_indices()
 
-        self.n_users = URM_mask.shape[0]
-        self.n_items = URM_mask.shape[1]
-        self.topK = topK
+        self.n_users, self.n_items = URM_mask.shape
+        self.topK = min(topK, self.n_items)
         self.learning_rate = learning_rate
         self.li_reg = li_reg
         self.lj_reg = lj_reg
-        self.batch_size = batch_size
         self.verbose = verbose
 
 
@@ -211,29 +210,25 @@ cdef class SLIM_BPR_Cython_Epoch:
 
     def epochIteration_Cython(self):
 
-        # Get number of available interactions
-        cdef long totalNumberOfBatch = int(self.n_users / self.batch_size) + 1
-
         cdef long start_time_epoch = time.time()
         cdef long start_time_batch = time.time()
 
         cdef BPR_sample sample
         cdef long i, j
-        cdef long index, seenItem, numCurrentBatch, itemId
+        cdef long index, seen_item, n_current_sample
         cdef double x_uij, gradient, loss = 0.0
         cdef double local_gradient_i, local_gradient_j
 
-        cdef int numSeenItems
-        cdef int printStep
+        cdef int print_step
 
         if self.train_with_sparse_weights:
-            printStep = 500000
+            print_step = 500000
         else:
-            printStep = 5000000
+            print_step = 5000000
 
 
         # Uniform user sampling without replacement
-        for numCurrentBatch in range(totalNumberOfBatch):
+        for n_current_sample in range(self.n_users):
 
             sample = self.sampleBPR_Cython()
 
@@ -247,17 +242,17 @@ cdef class SLIM_BPR_Cython_Epoch:
             index = 0
             while index <  sample.seen_items_end_pos - sample.seen_items_start_pos:
 
-                seenItem = self.URM_mask_indices[sample.seen_items_start_pos + index]
+                seen_item = self.URM_mask_indices[sample.seen_items_start_pos + index]
                 index +=1
 
                 if self.train_with_sparse_weights:
-                   x_uij += self.S_sparse.get_value(i, seenItem) - self.S_sparse.get_value(j, seenItem)
+                   x_uij += self.S_sparse.get_value(i, seen_item) - self.S_sparse.get_value(j, seen_item)
 
                 elif self.symmetric:
-                    x_uij += self.S_symmetric.get_value(i, seenItem) - self.S_symmetric.get_value(j, seenItem)
+                    x_uij += self.S_symmetric.get_value(i, seen_item) - self.S_symmetric.get_value(j, seen_item)
 
                 else:
-                    x_uij += self.S_dense[i, seenItem] - self.S_dense[j, seenItem]
+                    x_uij += self.S_dense[i, seen_item] - self.S_dense[j, seen_item]
 
 
             gradient = 1 / (1 + exp(x_uij))
@@ -271,42 +266,42 @@ cdef class SLIM_BPR_Cython_Epoch:
             index = 0
             while index < sample.seen_items_end_pos - sample.seen_items_start_pos:
 
-                seenItem = self.URM_mask_indices[sample.seen_items_start_pos + index]
+                seen_item = self.URM_mask_indices[sample.seen_items_start_pos + index]
                 index +=1
 
                 if self.train_with_sparse_weights:
                     # Since the sparse matrix is slower compared to the others
                     # If no reg is required, avoid accessing it
 
-                    if seenItem != i:
+                    if seen_item != i:
                         if self.li_reg!= 0.0:
-                            self.S_sparse.add_value(i, seenItem, self.learning_rate * (local_gradient_i - self.li_reg * self.S_sparse.get_value(i, seenItem)))
+                            self.S_sparse.add_value(i, seen_item, self.learning_rate * (local_gradient_i - self.li_reg * self.S_sparse.get_value(i, seen_item)))
                         else:
-                            self.S_sparse.add_value(i, seenItem, self.learning_rate * local_gradient_i)
+                            self.S_sparse.add_value(i, seen_item, self.learning_rate * local_gradient_i)
 
 
-                    if seenItem != j:
+                    if seen_item != j:
                         if self.lj_reg!= 0.0:
-                            self.S_sparse.add_value(j, seenItem, -self.learning_rate * (local_gradient_j - self.lj_reg * self.S_sparse.get_value(j, seenItem)))
+                            self.S_sparse.add_value(j, seen_item, -self.learning_rate * (local_gradient_j - self.lj_reg * self.S_sparse.get_value(j, seen_item)))
                         else:
-                            self.S_sparse.add_value(j, seenItem, -self.learning_rate * local_gradient_j)
+                            self.S_sparse.add_value(j, seen_item, -self.learning_rate * local_gradient_j)
 
 
                 elif self.symmetric:
 
-                    if seenItem != i:
-                        self.S_symmetric.add_value(i, seenItem, self.learning_rate * (local_gradient_i - self.li_reg * self.S_symmetric.get_value(i, seenItem)))
+                    if seen_item != i:
+                        self.S_symmetric.add_value(i, seen_item, self.learning_rate * (local_gradient_i - self.li_reg * self.S_symmetric.get_value(i, seen_item)))
 
-                    if seenItem != j:
-                        self.S_symmetric.add_value(j, seenItem, -self.learning_rate * (local_gradient_j - self.lj_reg * self.S_symmetric.get_value(j, seenItem)))
+                    if seen_item != j:
+                        self.S_symmetric.add_value(j, seen_item, -self.learning_rate * (local_gradient_j - self.lj_reg * self.S_symmetric.get_value(j, seen_item)))
 
                 else:
 
-                    if seenItem != i:
-                        self.S_dense[i, seenItem] += self.learning_rate * (local_gradient_i - self.li_reg * self.S_dense[i, seenItem])
+                    if seen_item != i:
+                        self.S_dense[i, seen_item] += self.learning_rate * (local_gradient_i - self.li_reg * self.S_dense[i, seen_item])
 
-                    if seenItem != j:
-                        self.S_dense[j, seenItem] -= self.learning_rate * (local_gradient_j - self.lj_reg * self.S_dense[j, seenItem])
+                    if seen_item != j:
+                        self.S_dense[j, seen_item] -= self.learning_rate * (local_gradient_j - self.lj_reg * self.S_dense[j, seen_item])
 
 
 
@@ -320,17 +315,19 @@ cdef class SLIM_BPR_Cython_Epoch:
 
             # If I have reached at least 20% of the total number of batches or samples
             # This allows to limit the memory occupancy of the sparse matrix
-            if self.train_with_sparse_weights and numCurrentBatch % (totalNumberOfBatch/5) == 0 and numCurrentBatch!=0:
+            if self.train_with_sparse_weights and n_current_sample % (self.n_users/5) == 0 and n_current_sample!=0:
                 self.S_sparse.rebalance_tree(TopK=self.topK)
 
 
-            if self.verbose and ((numCurrentBatch%printStep==0 and not numCurrentBatch==0) or numCurrentBatch==totalNumberOfBatch-1):
-                print("Processed {} ( {:.2f}% ) in {:.2f} seconds. BPR loss is {:.2E}. Sample per second: {:.0f}".format(
-                    numCurrentBatch*self.batch_size,
-                    100.0* float(numCurrentBatch*self.batch_size)/self.n_users,
-                    time.time() - start_time_batch,
-                    loss/(numCurrentBatch*self.batch_size + 1),
-                    float(numCurrentBatch*self.batch_size + 1) / (time.time() - start_time_epoch)))
+            if self.verbose and ((n_current_sample+1) % print_step==0 or n_current_sample==self.n_users-1):
+                new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time_epoch)
+
+                print("Processed {} ({:4.1f}%) in {:.2f} {}. BPR loss is {:.2E}. Sample per second: {:.0f}".format(
+                    n_current_sample+1,
+                    100.0* float(n_current_sample+1)/self.n_users,
+                    new_time_value, new_time_unit,
+                    loss/(n_current_sample+1),
+                    float(n_current_sample+1) / (time.time() - start_time_epoch)))
 
                 sys.stdout.flush()
                 sys.stderr.flush()

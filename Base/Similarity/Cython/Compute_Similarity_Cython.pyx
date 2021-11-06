@@ -41,6 +41,7 @@ from libc.math cimport sqrt
 
 import scipy.sparse as sps
 from Base.Recommender_utils import check_matrix
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
@@ -60,7 +61,7 @@ cdef class Compute_Similarity_Cython:
     cdef int[:] user_to_item_row_ptr, user_to_item_cols
     cdef int[:] item_to_user_rows, item_to_user_col_ptr
     cdef double[:] user_to_item_data, item_to_user_data
-    cdef double[:] sumOfSquared, sumOfSquared_to_1_minus_alpha, sumOfSquared_to_alpha
+    cdef double[:] sum_of_squared, sum_of_squared_to_1_minus_alpha, sum_of_squared_to_alpha
     cdef int shrink, normalize, adjusted_cosine, pearson_correlation, tanimoto_coefficient, asymmetric_cosine, dice_coefficient, tversky_coefficient
     cdef float asymmetric_alpha, tversky_alpha, tversky_beta
 
@@ -166,18 +167,19 @@ cdef class Compute_Similarity_Cython:
 
 
         # Compute sum of squared values to be used in normalization
-        self.sumOfSquared = np.array(dataMatrix.power(2).sum(axis=0), dtype=np.float64).ravel()
+        self.sum_of_squared = np.array(dataMatrix.power(2).sum(axis=0), dtype=np.float64).ravel()
 
         # Tanimoto does not require the square root to be applied
         if not (self.tanimoto_coefficient or self.dice_coefficient or self.tversky_coefficient):
-            self.sumOfSquared = np.sqrt(self.sumOfSquared)
+            self.sum_of_squared = np.sqrt(self.sum_of_squared)
 
         if self.asymmetric_cosine:
-            self.sumOfSquared_to_1_minus_alpha = np.power(self.sumOfSquared, 2 * (1 - self.asymmetric_alpha))
-            self.sumOfSquared_to_alpha = np.power(self.sumOfSquared, 2 * self.asymmetric_alpha)
+            # The power of 1-alpha may be negative so add small value to ensure values are non-zeros
+            sum_of_squared_np = np.array(self.sum_of_squared) + 1e-6
+            self.sum_of_squared_to_alpha = np.power(sum_of_squared_np, 2 * self.asymmetric_alpha)
+            self.sum_of_squared_to_1_minus_alpha = np.power(sum_of_squared_np, 2 * (1 - self.asymmetric_alpha))
 
-
-        # Apply weight after sumOfSquared has been computed but before the matrix is
+        # Apply weight after sum_of_squared has been computed but before the matrix is
         # split in its inner data structures
         self.use_row_weights = False
 
@@ -419,8 +421,8 @@ cdef class Compute_Similarity_Cython:
 
         cdef int print_block_size = 500
 
-        cdef int itemIndex, innerItemIndex, item_id, local_topK
-        cdef long long topKItemIndex
+        cdef int item_index, inner_item_index, item_id, local_topK
+        cdef long long topK_item_index
 
         cdef long long[:] top_k_idx
 
@@ -429,13 +431,14 @@ cdef class Compute_Similarity_Cython:
         cdef np.ndarray[np.float64_t, ndim=1] this_item_weights_np = np.zeros(self.n_columns, dtype=np.float64)
         #cdef double[:] this_item_weights
 
-        cdef long processedItems = 0
+        cdef long processed_items = 0
 
         # Data structure to incrementally build sparse matrix
         # Preinitialize max possible length
-        cdef double[:] values = np.zeros((self.n_columns*self.TopK))
-        cdef int[:] rows = np.zeros((self.n_columns*self.TopK,), dtype=np.int32)
-        cdef int[:] cols = np.zeros((self.n_columns*self.TopK,), dtype=np.int32)
+        cdef unsigned long long max_cells = <long long> self.n_columns*self.TopK
+        cdef double[:] values = np.zeros((max_cells))
+        cdef int[:] rows = np.zeros((max_cells,), dtype=np.int32)
+        cdef int[:] cols = np.zeros((max_cells,), dtype=np.int32)
         cdef long sparse_data_pointer = 0
 
         cdef int start_col_local = 0, end_col_local = self.n_columns
@@ -458,56 +461,56 @@ cdef class Compute_Similarity_Cython:
         start_time = time.time()
         last_print_time = start_time
 
-        itemIndex = start_col_local
+        item_index = start_col_local
 
         # Compute all similarities for each item
-        while itemIndex < end_col_local:
+        while item_index < end_col_local:
 
-            processedItems += 1
+            processed_items += 1
 
             # Computed similarities go in self.this_item_weights
-            self.computeItemSimilarities(itemIndex)
+            self.computeItemSimilarities(item_index)
 
 
             # Apply normalization and shrinkage, ensure denominator != 0
             if self.normalize:
-                for innerItemIndex in range(self.n_columns):
+                for inner_item_index in range(self.n_columns):
 
                     if self.asymmetric_cosine:
-                        self.this_item_weights[innerItemIndex] /= self.sumOfSquared_to_alpha[itemIndex] * self.sumOfSquared_to_1_minus_alpha[innerItemIndex]\
+                        self.this_item_weights[inner_item_index] /= self.sum_of_squared_to_alpha[item_index] * self.sum_of_squared_to_1_minus_alpha[inner_item_index]\
                                                              + self.shrink + 1e-6
 
                     else:
-                        self.this_item_weights[innerItemIndex] /= self.sumOfSquared[itemIndex] * self.sumOfSquared[innerItemIndex]\
+                        self.this_item_weights[inner_item_index] /= self.sum_of_squared[item_index] * self.sum_of_squared[inner_item_index]\
                                                              + self.shrink + 1e-6
 
             # Apply the specific denominator for Tanimoto
             elif self.tanimoto_coefficient:
-                for innerItemIndex in range(self.n_columns):
-                    self.this_item_weights[innerItemIndex] /= self.sumOfSquared[itemIndex] + self.sumOfSquared[innerItemIndex] -\
-                                                         self.this_item_weights[innerItemIndex] + self.shrink + 1e-6
+                for inner_item_index in range(self.n_columns):
+                    self.this_item_weights[inner_item_index] /= self.sum_of_squared[item_index] + self.sum_of_squared[inner_item_index] -\
+                                                         self.this_item_weights[inner_item_index] + self.shrink + 1e-6
 
             elif self.dice_coefficient:
-                for innerItemIndex in range(self.n_columns):
-                    self.this_item_weights[innerItemIndex] /= self.sumOfSquared[itemIndex] + self.sumOfSquared[innerItemIndex] +\
+                for inner_item_index in range(self.n_columns):
+                    self.this_item_weights[inner_item_index] /= self.sum_of_squared[item_index] + self.sum_of_squared[inner_item_index] +\
                                                          self.shrink + 1e-6
 
             elif self.tversky_coefficient:
-                for innerItemIndex in range(self.n_columns):
-                    self.this_item_weights[innerItemIndex] /= self.this_item_weights[innerItemIndex] + \
-                                                              (self.sumOfSquared[itemIndex]-self.this_item_weights[innerItemIndex])*self.tversky_alpha + \
-                                                              (self.sumOfSquared[innerItemIndex]-self.this_item_weights[innerItemIndex])*self.tversky_beta +\
+                for inner_item_index in range(self.n_columns):
+                    self.this_item_weights[inner_item_index] /= self.this_item_weights[inner_item_index] + \
+                                                              (self.sum_of_squared[item_index]-self.this_item_weights[inner_item_index])*self.tversky_alpha + \
+                                                              (self.sum_of_squared[inner_item_index]-self.this_item_weights[inner_item_index])*self.tversky_beta +\
                                                               self.shrink + 1e-6
 
             elif self.shrink != 0:
-                for innerItemIndex in range(self.n_columns):
-                    self.this_item_weights[innerItemIndex] /= self.shrink
+                for inner_item_index in range(self.n_columns):
+                    self.this_item_weights[inner_item_index] /= self.shrink
 
 
             if self.TopK == 0:
 
-                for innerItemIndex in range(self.n_columns):
-                    self.W_dense[innerItemIndex,itemIndex] = self.this_item_weights[innerItemIndex]
+                for inner_item_index in range(self.n_columns):
+                    self.W_dense[inner_item_index,item_index] = self.this_item_weights[inner_item_index]
 
             else:
 
@@ -525,14 +528,14 @@ cdef class Compute_Similarity_Cython:
 
 
                 #this_item_weights_np = clone(template_zero, self.this_item_weights_counter, zero=False)
-                for innerItemIndex in range(self.n_columns):
-                    this_item_weights_np[innerItemIndex] = 0.0
+                for inner_item_index in range(self.n_columns):
+                    this_item_weights_np[inner_item_index] = 0.0
 
 
                 # Add weights in the same ordering as the self.this_item_weights_id data structure
-                for innerItemIndex in range(self.this_item_weights_counter):
-                    item_id = self.this_item_weights_id[innerItemIndex]
-                    this_item_weights_np[innerItemIndex] = - self.this_item_weights[item_id]
+                for inner_item_index in range(self.this_item_weights_counter):
+                    item_id = self.this_item_weights_id[inner_item_index]
+                    this_item_weights_np[inner_item_index] = - self.this_item_weights[item_id]
 
 
                 local_topK = min([self.TopK, self.this_item_weights_counter])
@@ -547,40 +550,41 @@ cdef class Compute_Similarity_Cython:
 
 
                 # Incrementally build sparse matrix, do not add zeros
-                for innerItemIndex in range(len(top_k_idx)):
+                for inner_item_index in range(len(top_k_idx)):
 
-                    topKItemIndex = top_k_idx[innerItemIndex]
+                    topK_item_index = top_k_idx[inner_item_index]
 
-                    item_id = self.this_item_weights_id[topKItemIndex]
+                    item_id = self.this_item_weights_id[topK_item_index]
 
                     if self.this_item_weights[item_id] != 0.0:
 
                         values[sparse_data_pointer] = self.this_item_weights[item_id]
                         rows[sparse_data_pointer] = item_id
-                        cols[sparse_data_pointer] = itemIndex
+                        cols[sparse_data_pointer] = item_index
 
                         sparse_data_pointer += 1
 
 
-            itemIndex += 1
+            item_index += 1
 
 
-            if processedItems % print_block_size==0 or processedItems==end_col_local:
+            if processed_items % print_block_size==0 or processed_items==end_col_local:
 
                 current_time = time.time()
 
-                # Set block size to the number of items necessary in order to print every 30 seconds
+                # Set block size to the number of items necessary in order to print every 300 seconds
                 if current_time - start_time != 0:
-                    itemPerSec = processedItems/(current_time - start_time)
+                    items_per_sec = processed_items/(current_time - start_time)
                 else:
-                    itemPerSec = 1
+                    items_per_sec = 1
 
-                print_block_size = int(itemPerSec*30)
+                print_block_size = int(items_per_sec*300)
 
-                if current_time - last_print_time > 30  or processedItems==end_col_local:
+                if current_time - last_print_time > 300  or processed_items==end_col_local:
+                    new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time)
 
-                    print("Similarity column {} ( {:2.0f} % ), {:.2f} column/sec, elapsed time {:.2f} min".format(
-                        processedItems, processedItems*1.0/(end_col_local-start_col_local)*100, itemPerSec, (time.time()-start_time) / 60))
+                    print("Similarity column {} ({:4.1f}%), {:.2f} column/sec. Elapsed time {:.2f} {}".format(
+                        processed_items, processed_items*1.0/(end_col_local-start_col_local)*100, items_per_sec, new_time_value, new_time_unit))
 
                     last_print_time = current_time
 

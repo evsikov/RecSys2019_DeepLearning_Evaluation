@@ -9,6 +9,7 @@ import scipy.sparse as sps
 
 from sklearn.preprocessing import normalize
 from Base.Recommender_utils import check_matrix, similarityMatrixTopK
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 from Base.BaseSimilarityMatrixRecommender import BaseItemSimilarityMatrixRecommender
 import time, sys
@@ -116,12 +117,14 @@ class P3alphaRecommender(BaseItemSimilarityMatrixRecommender):
                     numCells += 1
 
 
-            if time.time() - start_time_printBatch > 60:
-                self._print("Processed {} ( {:.2f}% ) in {:.2f} minutes. Rows per second: {:.0f}".format(
-                    current_block_start_row,
-                    100.0 * float(current_block_start_row) / Pui.shape[1],
-                    (time.time() - start_time) / 60,
-                    float(current_block_start_row) / (time.time() - start_time)))
+            if time.time() - start_time_printBatch > 300:
+                new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time)
+
+                self._print("Similarity column {} ({:4.1f}%), {:.2f} column/sec. Elapsed time {:.2f} {}".format(
+                     current_block_start_row + block_dim,
+                    100.0 * float( current_block_start_row + block_dim) / Pui.shape[1],
+                    float( current_block_start_row + block_dim) / (time.time() - start_time),
+                    new_time_value, new_time_unit))
 
                 sys.stdout.flush()
                 sys.stderr.flush()

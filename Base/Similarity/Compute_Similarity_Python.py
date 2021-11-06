@@ -10,11 +10,9 @@ import numpy as np
 import time, sys
 import scipy.sparse as sps
 from Base.Recommender_utils import check_matrix
-
-
+from Utils.seconds_to_biggest_unit import seconds_to_biggest_unit
 
 class Compute_Similarity_Python:
-
 
     def __init__(self, dataMatrix, topK=100, shrink = 0, normalize = True,
                  asymmetric_alpha = 0.5, tversky_alpha = 1.0, tversky_beta = 1.0,
@@ -46,7 +44,6 @@ class Compute_Similarity_Python:
         """
 
         super(Compute_Similarity_Python, self).__init__()
-
 
         self.shrink = shrink
         self.normalize = normalize
@@ -89,7 +86,7 @@ class Compute_Similarity_Python:
         elif similarity == "cosine":
             pass
         else:
-            raise ValueError("Cosine_Similarity: value for parameter 'mode' not recognized."
+            raise ValueError("Cosine_Similarity: value for argument 'mode' not recognized."
                              " Allowed values are: 'cosine', 'pearson', 'adjusted', 'asymmetric', 'jaccard', 'tanimoto',"
                              "dice, tversky."
                              " Passed value was '{}'".format(similarity))
@@ -221,7 +218,7 @@ class Compute_Similarity_Python:
 
         start_time = time.time()
         start_time_print_batch = start_time
-        processedItems = 0
+        processed_items = 0
 
 
         if self.adjusted_cosine:
@@ -239,15 +236,16 @@ class Compute_Similarity_Python:
 
 
         # Compute sum of squared values to be used in normalization
-        sumOfSquared = np.array(self.dataMatrix.power(2).sum(axis=0)).ravel()
+        sum_of_squared = np.array(self.dataMatrix.power(2).sum(axis=0)).ravel()
 
         # Tanimoto does not require the square root to be applied
         if not (self.tanimoto_coefficient or self.dice_coefficient or self.tversky_coefficient):
-            sumOfSquared = np.sqrt(sumOfSquared)
+            sum_of_squared = np.sqrt(sum_of_squared)
+
 
         if self.asymmetric_cosine:
-            sumOfSquared_to_1_minus_alpha = np.power(sumOfSquared, 2 * (1 - self.asymmetric_alpha))
-            sumOfSquared_to_alpha = np.power(sumOfSquared, 2 * self.asymmetric_alpha)
+            sum_of_squared_to_alpha = np.power(sum_of_squared + 1e-6, 2 * self.asymmetric_alpha)
+            sum_of_squared_to_1_minus_alpha = np.power(sum_of_squared + 1e-6, 2 * (1 - self.asymmetric_alpha))
 
 
         self.dataMatrix = check_matrix(self.dataMatrix, 'csc')
@@ -271,33 +269,25 @@ class Compute_Similarity_Python:
         # Compute all similarities for each item using vectorization
         while start_col_block < end_col_local:
 
-
+            # Compute block first and last column
             end_col_block = min(start_col_block + block_size, end_col_local)
             this_block_size = end_col_block-start_col_block
 
-
-
             # All data points for a given item
             item_data = self.dataMatrix[:, start_col_block:end_col_block]
-            item_data = item_data.toarray().squeeze()
+            item_data = item_data.toarray()
 
-            # If only 1 feature avoid last dimension to disappear
-            if item_data.ndim == 1:
-                item_data = np.atleast_2d(item_data)
-
+            # Compute item similarities
             if self.use_row_weights:
                 this_block_weights = self.dataMatrix_weighted.T.dot(item_data)
-
             else:
-                # Compute item similarities
                 this_block_weights = self.dataMatrix.T.dot(item_data)
-
 
 
             for col_index_in_block in range(this_block_size):
 
                 if this_block_size == 1:
-                    this_column_weights = this_block_weights
+                    this_column_weights = this_block_weights.ravel()
                 else:
                     this_column_weights = this_block_weights[:,col_index_in_block]
 
@@ -309,26 +299,26 @@ class Compute_Similarity_Python:
                 if self.normalize:
 
                     if self.asymmetric_cosine:
-                        denominator = sumOfSquared_to_alpha[columnIndex] * sumOfSquared_to_1_minus_alpha + self.shrink + 1e-6
+                        denominator = sum_of_squared_to_alpha[columnIndex] * sum_of_squared_to_1_minus_alpha + self.shrink + 1e-6
                     else:
-                        denominator = sumOfSquared[columnIndex] * sumOfSquared + self.shrink + 1e-6
+                        denominator = sum_of_squared[columnIndex] * sum_of_squared + self.shrink + 1e-6
 
                     this_column_weights = np.multiply(this_column_weights, 1 / denominator)
 
 
                 # Apply the specific denominator for Tanimoto
                 elif self.tanimoto_coefficient:
-                    denominator = sumOfSquared[columnIndex] + sumOfSquared - this_column_weights + self.shrink + 1e-6
+                    denominator = sum_of_squared[columnIndex] + sum_of_squared - this_column_weights + self.shrink + 1e-6
                     this_column_weights = np.multiply(this_column_weights, 1 / denominator)
 
                 elif self.dice_coefficient:
-                    denominator = sumOfSquared[columnIndex] + sumOfSquared + self.shrink + 1e-6
+                    denominator = sum_of_squared[columnIndex] + sum_of_squared + self.shrink + 1e-6
                     this_column_weights = np.multiply(this_column_weights, 1 / denominator)
 
                 elif self.tversky_coefficient:
                     denominator = this_column_weights + \
-                                  (sumOfSquared[columnIndex] - this_column_weights)*self.tversky_alpha + \
-                                  (sumOfSquared - this_column_weights)*self.tversky_beta + self.shrink + 1e-6
+                                  (sum_of_squared[columnIndex] - this_column_weights)*self.tversky_alpha + \
+                                  (sum_of_squared - this_column_weights)*self.tversky_beta + self.shrink + 1e-6
                     this_column_weights = np.multiply(this_column_weights, 1 / denominator)
 
                 # If no normalization or tanimoto is selected, apply only shrink
@@ -336,7 +326,6 @@ class Compute_Similarity_Python:
                     this_column_weights = this_column_weights/self.shrink
 
 
-                #this_column_weights = this_column_weights.toarray().ravel()
 
                 # Sort indices and select TopK
                 # Sorting is done in three steps. Faster then plain np.argsort for higher number of items
@@ -355,16 +344,16 @@ class Compute_Similarity_Python:
                 rows.extend(top_k_idx[notZerosMask])
                 cols.extend(np.ones(numNotZeros) * columnIndex)
 
-
             # Add previous block size
-            processedItems += this_block_size
+            start_col_block += this_block_size
+            processed_items += this_block_size
 
+            if time.time() - start_time_print_batch >= 300 or end_col_block==end_col_local:
+                column_per_sec = processed_items / (time.time() - start_time + 1e-9)
+                new_time_value, new_time_unit = seconds_to_biggest_unit(time.time() - start_time)
 
-            if time.time() - start_time_print_batch >= 30 or end_col_block==end_col_local:
-                columnPerSec = processedItems / (time.time() - start_time + 1e-9)
-
-                print("Similarity column {} ( {:2.0f} % ), {:.2f} column/sec, elapsed time {:.2f} min".format(
-                    processedItems, processedItems / (end_col_local - start_col_local) * 100, columnPerSec, (time.time() - start_time)/ 60))
+                print("Similarity column {} ({:4.1f}%), {:.2f} column/sec. Elapsed time {:.2f} {}".format(
+                    processed_items, processed_items / (end_col_local - start_col_local) * 100, column_per_sec, new_time_value, new_time_unit))
 
                 sys.stdout.flush()
                 sys.stderr.flush()
@@ -372,13 +361,10 @@ class Compute_Similarity_Python:
                 start_time_print_batch = time.time()
 
 
-            start_col_block += block_size
-
         # End while on columns
 
         W_sparse = sps.csr_matrix((values, (rows, cols)),
                                   shape=(self.n_columns, self.n_columns),
                                   dtype=np.float32)
-
 
         return W_sparse
