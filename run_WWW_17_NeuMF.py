@@ -51,7 +51,7 @@ def read_data_split_and_search(dataset_name,
     URM_test = dataset.URM_DICT["URM_test"].copy()
     URM_test_negative = dataset.URM_DICT["URM_test_negative"].copy()
 
-
+    print(f"sevs => Copied dataset {dataset}")
     # Ensure IMPLICIT data and DISJOINT sets
     assert_implicit_data([URM_train, URM_validation, URM_test, URM_test_negative])
 
@@ -68,9 +68,13 @@ def read_data_split_and_search(dataset_name,
 
     algorithm_dataset_string = "{}_{}_".format(ALGORITHM_NAME, dataset_name)
 
+    print("sevs => Plotting popularity")
+
     plot_popularity_bias([URM_train + URM_validation, URM_test],
                          ["Training data", "Test data"],
                          result_folder_path + algorithm_dataset_string + "popularity_plot")
+
+    print("sevs => Saving popularity statistics")
 
     save_popularity_statistics([URM_train + URM_validation + URM_test, URM_train + URM_validation, URM_test],
                                ["Full data", "Training data", "Test data"],
@@ -123,10 +127,12 @@ def read_data_split_and_search(dataset_name,
 
 
 
+    print(f"sevs => is flag_baselines_tune : {flag_baselines_tune}")
 
     if flag_baselines_tune:
 
         for recommender_class in collaborative_algorithm_list:
+            print(f"sevs => tuning recommender {recommender_class}")
             try:
                 runParameterSearch_Collaborative_partial(recommender_class)
             except Exception as e:
@@ -139,6 +145,8 @@ def read_data_split_and_search(dataset_name,
     ######
     ######      DL ALGORITHM
     ######
+
+    print(f"sevs => is flag_DL_article_default : {flag_DL_article_default}")
 
     if flag_DL_article_default:
 
@@ -216,6 +224,8 @@ def read_data_split_and_search(dataset_name,
     ######      PRINT RESULTS
     ######
 
+    print(f"sevs => is flag_print_results : {flag_print_results}")
+
     if flag_print_results:
 
         n_test_users = np.sum(np.ediff1d(URM_test.indptr)>=1)
@@ -267,19 +277,18 @@ if __name__ == '__main__':
 
 
 
-    dataset_list = ["movielens1m", "pinterest"]
+    dataset_list = ["movielens1m"] # , "pinterest"]
 
 
     for dataset_name in dataset_list:
-
+        print(f"sevs => Processing dataset {dataset_name}")
         read_data_split_and_search(dataset_name,
                                         flag_baselines_tune=input_flags.baseline_tune,
                                         flag_DL_article_default= input_flags.DL_article_default,
                                         flag_print_results = input_flags.print_results,
                                         )
 
-
-
+    print(f"sevs => Print results is {input_flags.print_results}")
     if input_flags.print_results:
         generate_latex_hyperparameters(result_folder_path ="result_experiments/{}/".format(CONFERENCE_NAME),
                                        algorithm_name= ALGORITHM_NAME,

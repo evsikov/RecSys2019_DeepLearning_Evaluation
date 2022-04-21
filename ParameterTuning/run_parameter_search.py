@@ -391,7 +391,7 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
     :param similarity_type_list: List of strings with the similarity heuristics to be used for the KNNs
     """
 
-
+    print(f"sevs => running parameter search collaborative for recommender class {recommender_class}")
 
     # If directory does not exist, create
     if not os.path.exists(output_folder_path):
@@ -743,6 +743,7 @@ def runParameterSearch_Collaborative(recommender_class, URM_train, URM_train_las
         else:
             recommender_input_args_last_test = None
 
+        print(f"sevs => Starting parameter search for {recommender_class} with hyperparameters {hyperparameters_range_dictionary}")
         ## Final step, after the hyperparameter range has been defined for each type of algorithm
         parameterSearch.search(recommender_input_args,
                                parameter_search_space = hyperparameters_range_dictionary,
